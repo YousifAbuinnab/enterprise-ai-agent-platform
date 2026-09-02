@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfWriter
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -44,8 +45,19 @@ def _test_db_and_uploads() -> Generator[None, None, None]:
     shutil.rmtree(TEST_UPLOAD_DIR, ignore_errors=True)
 
 
-def test_upload_txt_document_returns_201() -> None:
-    """Uploading a .txt file should succeed and return its metadata."""
+def _make_valid_pdf_bytes() -> bytes:
+    """Build a minimal valid (blank) PDF for use in tests."""
+    import io
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
+def test_upload_txt_document_is_processed_successfully() -> None:
+    """Uploading a .txt file should succeed, extract its text, and mark it 'processed'."""
     response = client.post(
         "/documents/upload", files={"file": ("notes.txt", b"hello world", "text/plain")}
     )
@@ -54,17 +66,32 @@ def test_upload_txt_document_returns_201() -> None:
     body = response.json()
     assert body["filename"] == "notes.txt"
     assert body["content_type"] == "text/plain"
+    assert body["processing_status"] == "processed"
     assert Path(body["file_path"]).exists()
 
 
-def test_upload_pdf_document_returns_201() -> None:
-    """Uploading a .pdf file should succeed and return its metadata."""
+def test_upload_valid_pdf_document_is_processed_successfully() -> None:
+    """Uploading a well-formed .pdf file should succeed and be marked 'processed'."""
     response = client.post(
-        "/documents/upload", files={"file": ("report.pdf", b"%PDF-1.4 fake", "application/pdf")}
+        "/documents/upload",
+        files={"file": ("report.pdf", _make_valid_pdf_bytes(), "application/pdf")},
     )
 
     assert response.status_code == 201
-    assert response.json()["filename"] == "report.pdf"
+    body = response.json()
+    assert body["filename"] == "report.pdf"
+    assert body["processing_status"] == "processed"
+
+
+def test_upload_corrupt_pdf_is_marked_failed_but_still_created() -> None:
+    """A corrupt .pdf should still create the document record, marked 'failed'."""
+    response = client.post(
+        "/documents/upload", files={"file": ("broken.pdf", b"not a real pdf", "application/pdf")}
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["processing_status"] == "failed"
 
 
 def test_upload_unsupported_file_type_returns_400() -> None:
@@ -105,5 +132,26 @@ def test_get_document_by_id_returns_document() -> None:
 def test_get_document_not_found_returns_404() -> None:
     """GET /documents/{id} should return 404 when no document has that id."""
     response = client.get("/documents/999999")
+
+    assert response.status_code == 404
+
+
+def test_get_document_content_returns_extracted_text() -> None:
+    """GET /documents/{id}/content should return the extracted text for a processed document."""
+    created = client.post(
+        "/documents/upload", files={"file": ("a.txt", b"hello world", "text/plain")}
+    ).json()
+
+    response = client.get(f"/documents/{created['id']}/content")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["processing_status"] == "processed"
+    assert body["parsed_text"] == "hello world"
+
+
+def test_get_document_content_not_found_returns_404() -> None:
+    """GET /documents/{id}/content should return 404 when no document has that id."""
+    response = client.get("/documents/999999/content")
 
     assert response.status_code == 404

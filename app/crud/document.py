@@ -21,3 +21,12 @@ def list_documents(db: Session) -> list[Document]:
 def get_document(db: Session, document_id: int) -> Document | None:
     """Return a single document by id, or None if not found."""
     return db.get(Document, document_id)
+
+
+def update_processing_result(db: Session, document: Document, status: str, parsed_text: str | None) -> Document:
+    """Store the outcome of text extraction (status + extracted text, if any) for a document."""
+    document.processing_status = status
+    document.parsed_text = parsed_text
+    db.commit()
+    db.refresh(document)
+    return document

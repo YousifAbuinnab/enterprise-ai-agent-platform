@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.crud import document as document_crud
 from app.db.session import get_db
-from app.schemas.document import DocumentRead
+from app.schemas.document import DocumentContent, DocumentRead
+from app.services.document_parser import extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,15 @@ def upload_document(file: UploadFile, db: Session = Depends(get_db)) -> Document
     document = document_crud.create_document(
         db, filename=file.filename, content_type=content_type, file_path=str(file_path)
     )
+
+    try:
+        parsed_text = extract_text(file_path, extension)
+    except Exception:
+        logger.exception("Failed to extract text from document %s", document.id)
+        document = document_crud.update_processing_result(db, document, status="failed", parsed_text=None)
+    else:
+        document = document_crud.update_processing_result(db, document, status="processed", parsed_text=parsed_text)
+
     return DocumentRead.model_validate(document)
 
 
@@ -61,3 +71,12 @@ def get_document(document_id: int, db: Session = Depends(get_db)) -> DocumentRea
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return DocumentRead.model_validate(document)
+
+
+@router.get("/{document_id}/content", response_model=DocumentContent)
+def get_document_content(document_id: int, db: Session = Depends(get_db)) -> DocumentContent:
+    """Retrieve the extracted text for a document. Returns 404 if not found."""
+    document = document_crud.get_document(db, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return DocumentContent.model_validate(document)
