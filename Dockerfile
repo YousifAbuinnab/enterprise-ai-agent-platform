@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 
 # Run as a non-root user for defense-in-depth
-RUN useradd --create-home appuser
+RUN useradd --create-home appuser && \
+    mkdir -p /app/uploads && \
+    chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000

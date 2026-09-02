@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     postgres_host: str = "localhost"
     postgres_port: int = 5432
 
+    upload_dir: str = "uploads"
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy database URL from the individual Postgres settings."""
