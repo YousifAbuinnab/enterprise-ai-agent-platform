@@ -27,3 +27,17 @@ def test_get_settings_returns_cached_instance() -> None:
     second = get_settings()
 
     assert first is second
+
+
+def test_database_url_is_built_from_postgres_settings() -> None:
+    """database_url should be assembled from the individual Postgres settings fields."""
+    settings = Settings(
+        _env_file=None,
+        postgres_user="user",
+        postgres_password="pass",
+        postgres_host="dbhost",
+        postgres_port=5433,
+        postgres_db="mydb",
+    )
+
+    assert settings.database_url == "postgresql+psycopg://user:pass@dbhost:5433/mydb"

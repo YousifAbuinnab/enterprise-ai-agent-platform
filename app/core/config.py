@@ -12,6 +12,21 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    postgres_user: str = "postgres"
+    postgres_password: str = "changeme"
+    postgres_db: str = "enterprise_ai_agent"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+
+    @property
+    def database_url(self) -> str:
+        """Build the SQLAlchemy database URL from the individual Postgres settings."""
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+
 
 @lru_cache
 def get_settings() -> Settings:
