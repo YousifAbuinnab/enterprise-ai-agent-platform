@@ -10,6 +10,7 @@ from app.crud import document as document_crud
 from app.db.session import get_db
 from app.schemas.document import DocumentContent, DocumentRead
 from app.services.document_parser import extract_text
+from app.services.document_processor import chunk_and_embed_document
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,15 @@ def upload_document(file: UploadFile, db: Session = Depends(get_db)) -> Document
     except Exception:
         logger.exception("Failed to extract text from document %s", document.id)
         document = document_crud.update_processing_result(db, document, status="failed", parsed_text=None)
-    else:
-        document = document_crud.update_processing_result(db, document, status="processed", parsed_text=parsed_text)
+        return DocumentRead.model_validate(document)
+
+    document = document_crud.update_processing_result(db, document, status="processed", parsed_text=parsed_text)
+
+    try:
+        chunk_and_embed_document(db, document)
+    except Exception:
+        # Text extraction already succeeded; chunk/embedding failure shouldn't fail the whole upload.
+        logger.exception("Failed to chunk/embed document %s", document.id)
 
     return DocumentRead.model_validate(document)
 
