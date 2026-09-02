@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.api.routes.customers import router as customers_router
 
 settings = get_settings()
 
@@ -14,6 +15,8 @@ logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
+
+app.include_router(customers_router)
 
 
 @app.get("/health")
