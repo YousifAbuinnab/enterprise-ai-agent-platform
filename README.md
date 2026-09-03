@@ -39,6 +39,47 @@ database, or agent functionality yet.
    curl http://localhost:8000/health
    ```
 
+## RAG question answering
+
+`POST /rag/ask` retrieves relevant document chunks and asks the configured LLM
+to answer only from that context.
+
+Request:
+```json
+{
+   "question": "What is the refund policy?",
+   "top_k": 5
+}
+```
+
+`top_k` is optional and defaults to `5`. The response contains the generated
+answer, unique source document names, and the retrieved chunk ids with their
+similarity scores:
+```json
+{
+   "answer": "Refunds are available within 30 days.",
+   "sources": ["policy.txt"],
+   "chunks": [
+      {
+         "chunk_id": 1,
+         "document_id": 1,
+         "filename": "policy.txt",
+         "similarity_score": 0.9
+      }
+   ]
+}
+```
+
+Configure the LLM in your local `.env`; never commit its API key:
+```bash
+LLM_PROVIDER=openai
+LLM_API_KEY=your-real-api-key
+LLM_MODEL=gpt-4o-mini
+```
+
+The application can start without `LLM_API_KEY`; the key is required only when
+`POST /rag/ask` reaches the configured LLM provider.
+
 ## Project structure
 
 ```

@@ -20,6 +20,10 @@ class Settings(BaseSettings):
 
     upload_dir: str = "uploads"
 
+    llm_provider: str = "openai"
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+
     @property
     def database_url(self) -> str:
         """Build the SQLAlchemy database URL from the individual Postgres settings."""
