@@ -9,6 +9,9 @@ python-multipart==0.0.20
 pypdf==5.1.0
 pgvector==0.3.6
 openai==3.7.0
+mcp==1.9.4
+# Pinned explicitly: mcp pulls a newer starlette that breaks fastapi==0.115.6
+starlette==0.41.3
 
 # CPU-only torch build for sentence-transformers; avoids pulling multi-GB CUDA packages
 --extra-index-url https://download.pytorch.org/whl/cpu

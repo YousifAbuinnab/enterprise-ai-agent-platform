@@ -1,13 +1,11 @@
 import json
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
-from app.crud import customer as customer_crud
-from app.crud import document_chunk as chunk_crud
 from app.schemas.agent import AgentRunResponse, ToolUse
-from app.services.embeddings import embed_query
+from app.services import tools
 from app.services.llm_client import generate_agent_response
 
 MAX_TOOL_ITERATIONS = 5
@@ -53,59 +51,6 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
 ]
 
 
-class SearchDocumentsArgs(BaseModel):
-    query: str = Field(min_length=1)
-    limit: int = Field(default=5, ge=1, le=10)
-
-
-class GetCustomerArgs(BaseModel):
-    customer_id: int = Field(ge=1)
-
-
-class ListCustomersArgs(BaseModel):
-    pass
-
-
-def _search_company_documents(db: Session, arguments: SearchDocumentsArgs) -> str:
-    rows = chunk_crud.search_similar_chunks(db, embed_query(arguments.query), arguments.limit)
-    results = [
-        {
-            "chunk_id": chunk.id,
-            "document_id": chunk.document_id,
-            "filename": filename,
-            "chunk_text": chunk.chunk_text,
-            "similarity_score": round(1 - distance, 4),
-        }
-        for chunk, filename, distance in rows
-    ]
-    return json.dumps(results)
-
-
-def _get_customer_by_id(db: Session, arguments: GetCustomerArgs) -> str:
-    customer = customer_crud.get_customer(db, arguments.customer_id)
-    if customer is None:
-        return json.dumps({"found": False, "message": "Customer not found"})
-    return json.dumps(
-        {
-            "found": True,
-            "id": customer.id,
-            "name": customer.name,
-            "email": customer.email,
-            "company": customer.company,
-        }
-    )
-
-
-def _list_customers(db: Session, _: ListCustomersArgs) -> str:
-    customers = customer_crud.list_customers(db)
-    return json.dumps(
-        [
-            {"id": customer.id, "name": customer.name, "email": customer.email, "company": customer.company}
-            for customer in customers
-        ]
-    )
-
-
 def execute_tool(db: Session, name: str, raw_arguments: str) -> ToolUse:
     """Validate and execute a single agent tool call without exposing internal errors."""
     try:
@@ -113,12 +58,12 @@ def execute_tool(db: Session, name: str, raw_arguments: str) -> ToolUse:
     except json.JSONDecodeError:
         return ToolUse(name=name, arguments={}, result="Tool call rejected: arguments must be valid JSON.")
 
-    tools: dict[str, tuple[type[BaseModel], Any]] = {
-        "search_company_documents": (SearchDocumentsArgs, _search_company_documents),
-        "get_customer_by_id": (GetCustomerArgs, _get_customer_by_id),
-        "list_customers": (ListCustomersArgs, _list_customers),
+    tool_registry: dict[str, tuple[type[BaseModel], Any]] = {
+        "search_company_documents": (tools.SearchDocumentsArgs, tools.search_documents),
+        "get_customer_by_id": (tools.GetCustomerArgs, tools.get_customer_by_id),
+        "list_customers": (tools.ListCustomersArgs, tools.list_customers),
     }
-    tool = tools.get(name)
+    tool = tool_registry.get(name)
     if tool is None:
         return ToolUse(name=name, arguments=arguments, result="Tool call rejected: unknown tool.")
 
@@ -129,6 +74,7 @@ def execute_tool(db: Session, name: str, raw_arguments: str) -> ToolUse:
         return ToolUse(name=name, arguments=arguments, result="Tool call rejected: invalid arguments.")
 
     return ToolUse(name=name, arguments=validated_arguments.model_dump(), result=handler(db, validated_arguments))
+
 
 
 def run_agent(db: Session, message: str) -> AgentRunResponse:

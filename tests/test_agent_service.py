@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from app.services import agent
+from app.services import agent, tools
 from app.services.llm_client import AgentResponse, AgentToolCall
 
 
@@ -39,10 +39,10 @@ def test_run_agent_uses_document_search_tool(monkeypatch: pytest.MonkeyPatch) ->
             AgentResponse("Refunds are available within 30 days.", []),
         ]
     )
-    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tools: next(responses))
-    monkeypatch.setattr(agent, "embed_query", lambda query: [0.0] * 384)
+    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tool_defs: next(responses))
+    monkeypatch.setattr(tools, "embed_query", lambda query: [0.0] * 384)
     monkeypatch.setattr(
-        agent.chunk_crud,
+        tools.chunk_crud,
         "search_similar_chunks",
         lambda db, embedding, limit: [
             (type("Chunk", (), {"id": 7, "document_id": 3, "chunk_text": "Refunds within 30 days."})(), "policy.txt", 0.1)
@@ -64,9 +64,9 @@ def test_run_agent_uses_customer_lookup_tool(monkeypatch: pytest.MonkeyPatch) ->
             AgentResponse("Customer 42 is Ada Lovelace.", []),
         ]
     )
-    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tools: next(responses))
+    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tool_defs: next(responses))
     monkeypatch.setattr(
-        agent.customer_crud, "get_customer", lambda db, customer_id: _FakeCustomer(42, "Ada Lovelace", "ada@example.com", "Analytical Co")
+        tools.customer_crud, "get_customer", lambda db, customer_id: _FakeCustomer(42, "Ada Lovelace", "ada@example.com", "Analytical Co")
     )
 
     result = agent.run_agent(db=None, message="Who is customer 42?")
@@ -90,10 +90,10 @@ def test_run_agent_handles_multiple_tool_calls(monkeypatch: pytest.MonkeyPatch) 
             AgentResponse("There is one customer: Ada Lovelace.", []),
         ]
     )
-    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tools: next(responses))
+    monkeypatch.setattr(agent, "generate_agent_response", lambda messages, tool_defs: next(responses))
     customer = _FakeCustomer(1, "Ada Lovelace", "ada@example.com", None)
-    monkeypatch.setattr(agent.customer_crud, "list_customers", lambda db: [customer])
-    monkeypatch.setattr(agent.customer_crud, "get_customer", lambda db, customer_id: customer)
+    monkeypatch.setattr(tools.customer_crud, "list_customers", lambda db: [customer])
+    monkeypatch.setattr(tools.customer_crud, "get_customer", lambda db, customer_id: customer)
 
     result = agent.run_agent(db=None, message="List customers and inspect customer 1")
 
@@ -122,13 +122,13 @@ def test_run_agent_stops_at_iteration_limit(monkeypatch: pytest.MonkeyPatch) -> 
     """Repeated tool calls should stop at MAX_TOOL_ITERATIONS rather than looping indefinitely."""
     calls = 0
 
-    def request_tool(messages: list[dict[str, object]], tools: list[dict[str, object]]) -> AgentResponse:
+    def request_tool(messages: list[dict[str, object]], tool_defs: list[dict[str, object]]) -> AgentResponse:
         nonlocal calls
         calls += 1
         return AgentResponse(None, [_tool_call("list_customers", {}, f"call_{calls}")])
 
     monkeypatch.setattr(agent, "generate_agent_response", request_tool)
-    monkeypatch.setattr(agent.customer_crud, "list_customers", lambda db: [])
+    monkeypatch.setattr(tools.customer_crud, "list_customers", lambda db: [])
 
     result = agent.run_agent(db=None, message="Keep searching")
 
