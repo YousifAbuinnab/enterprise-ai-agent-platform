@@ -39,6 +39,19 @@ database, or agent functionality yet.
    curl http://localhost:8000/health
    ```
 
+## Testing & CI
+
+Run the test suite locally with:
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+A GitHub Actions workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the full
+pytest suite on every push and pull request targeting `main`, using Python 3.12 on Ubuntu. It
+requires no external services or API keys — LLM calls are mocked in tests, and the few tests
+needing a live PostgreSQL database skip automatically when one isn't available.
+
 ## RAG question answering
 
 `POST /rag/ask` retrieves relevant document chunks and asks the configured LLM
