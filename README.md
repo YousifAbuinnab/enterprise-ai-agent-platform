@@ -1,5 +1,7 @@
 # Enterprise AI Agent Platform
 
+[![CI](https://github.com/YousifAbuinnab/enterprise-ai-agent-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/YousifAbuinnab/enterprise-ai-agent-platform/actions/workflows/ci.yml)
+
 A portfolio backend project simulating an internal company AI assistant: it answers questions
 from company documents with retrieval-augmented generation (RAG), runs a bounded tool-calling
 agent over customer/document data, and exposes the same tools over the Model Context Protocol
@@ -9,6 +11,16 @@ Docker, pytest, and GitHub Actions CI.
 This project is a working local/Docker demo intended to showcase AI/LLM backend engineering
 practices. It is **not** deployed to the cloud and has no authentication or production monitoring
 — see [Limitations & future improvements](#limitations--future-improvements).
+
+## Quick start
+
+```bash
+git clone https://github.com/YousifAbuinnab/enterprise-ai-agent-platform.git
+cd enterprise-ai-agent-platform
+cp .env.example .env
+docker compose up --build
+```
+Then open [http://localhost:8000/docs](http://localhost:8000/docs) for the interactive API docs.
 
 ## Features
 
